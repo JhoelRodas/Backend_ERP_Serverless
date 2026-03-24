@@ -2,7 +2,7 @@
 // PUT /api/compras/ordenes/{id}
 // Actualiza el estado de una orden de compra (ej. PENDIENTE â†’ RECIBIDA).
 
-const { pool }   = require('../shared/db');
+const { sql, poolPromise } = require('../shared/db');
 const { ok, badRequest, notFound, serverError } = require('../shared/response');
 
 const ESTADOS_VALIDOS = ['PENDIENTE', 'APROBADA', 'RECIBIDA', 'CANCELADA'];
@@ -17,12 +17,13 @@ module.exports = async function (context, req) {
   }
 
   try {
-    const { rowCount } = await pool.query(
-      `UPDATE ordenes_compra SET estado = $1 WHERE id = $2`,
-      [estado, id]
-    );
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input('estado', sql.NVarChar, estado)
+      .input('id',     sql.Int,      parseInt(id, 10))
+      .query(`UPDATE ordenes_compra SET estado = @estado WHERE id = @id`);
 
-    if (rowCount === 0) {
+    if (result.rowsAffected[0] === 0) {
       context.res = notFound(`Orden de compra con id ${id} no encontrada.`);
       return;
     }

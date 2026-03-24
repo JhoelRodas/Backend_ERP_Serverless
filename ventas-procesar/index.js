@@ -2,7 +2,7 @@
 // POST /api/ventas
 // Registra una venta, descuenta stock y genera la factura.
 
-const { pool }   = require('../shared/db');
+const { sql, poolPromise } = require('../shared/db');
 const { created, badRequest, serverError } = require('../shared/response');
 
 module.exports = async function (context, req) {
@@ -13,9 +13,10 @@ module.exports = async function (context, req) {
     return;
   }
 
-  const client = await pool.connect();
+  const pool = await poolPromise;
+  const transaction = new sql.Transaction(pool);
   try {
-    await client.query('BEGIN');
+    await transaction.begin();
 
     // Calcular total
     let total = 0;
@@ -24,35 +25,35 @@ module.exports = async function (context, req) {
     }
 
     // Insertar cabecera de venta
-    const { rows } = await client.query(
-      `INSERT INTO ventas (cliente_id, total, estado, creado_en)
-       VALUES ($1, $2, 'COMPLETADA', NOW())
-       RETURNING id`,
-      [cliente_id, total]
-    );
-    const ventaId = rows[0].id;
+    const insertVenta = await new sql.Request(transaction)
+      .input('clienteId', sql.Int,           cliente_id)
+      .input('total',     sql.Decimal(10,2), total)
+      .query(`INSERT INTO ventas (cliente_id, total, estado, creado_en)
+              OUTPUT INSERTED.id
+              VALUES (@clienteId, @total, 'COMPLETADA', GETDATE())`);
+    const ventaId = insertVenta.recordset[0].id;
 
     // Insertar detalle y descontar stock
     for (const item of items) {
-      await client.query(
-        `INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario)
-         VALUES ($1, $2, $3, $4)`,
-        [ventaId, item.producto_id, item.cantidad, item.precio_unitario]
-      );
+      await new sql.Request(transaction)
+        .input('ventaId',        sql.Int,           ventaId)
+        .input('productoId',     sql.Int,           item.producto_id)
+        .input('cantidad',       sql.Int,           item.cantidad)
+        .input('precioUnitario', sql.Decimal(10,2), item.precio_unitario)
+        .query(`INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario)
+                VALUES (@ventaId, @productoId, @cantidad, @precioUnitario)`);
 
-      await client.query(
-        `UPDATE inventario SET stock = stock - $1 WHERE producto_id = $2`,
-        [item.cantidad, item.producto_id]
-      );
+      await new sql.Request(transaction)
+        .input('cantidad',   sql.Int, item.cantidad)
+        .input('productoId', sql.Int, item.producto_id)
+        .query(`UPDATE inventario SET stock = stock - @cantidad WHERE producto_id = @productoId`);
     }
 
-    await client.query('COMMIT');
+    await transaction.commit();
     context.res = created({ id: ventaId, total, message: 'Venta procesada exitosamente.' });
   } catch (error) {
-    await client.query('ROLLBACK');
+    await transaction.rollback();
     context.log.error('Error al procesar venta:', error.message);
     context.res = serverError(error);
-  } finally {
-    client.release();
   }
 };

@@ -1,7 +1,7 @@
 ﻿// productos/crear-producto/index.js
 // POST /api/productos
 
-const { pool }   = require('../shared/db');
+const { sql, poolPromise } = require('../shared/db');
 const { created, badRequest, serverError } = require('../shared/response');
 
 module.exports = async function (context, req) {
@@ -12,32 +12,34 @@ module.exports = async function (context, req) {
     return;
   }
 
-  const client = await pool.connect();
+  const pool = await poolPromise;
+  const transaction = new sql.Transaction(pool);
   try {
-    await client.query('BEGIN');
+    await transaction.begin();
 
-    const { rows } = await client.query(
-      `INSERT INTO productos (nombre, codigo, descripcion, precio, categoria_id, creado_en)
-       VALUES ($1, $2, $3, $4, $5, NOW())
-       RETURNING id`,
-      [nombre, codigo, descripcion, precio, categoria_id]
-    );
-    const productoId = rows[0].id;
+    const result = await new sql.Request(transaction)
+      .input('nombre',      sql.NVarChar,      nombre)
+      .input('codigo',      sql.NVarChar,      codigo)
+      .input('descripcion', sql.NVarChar,      descripcion ?? null)
+      .input('precio',      sql.Decimal(10,2), precio)
+      .input('categoriaId', sql.Int,           categoria_id ?? null)
+      .query(`INSERT INTO productos (nombre, codigo, descripcion, precio, categoria_id, creado_en)
+              OUTPUT INSERTED.id
+              VALUES (@nombre, @codigo, @descripcion, @precio, @categoriaId, GETDATE())`);
 
-    // Inicializar registro de inventario
-    await client.query(
-      `INSERT INTO inventario (producto_id, stock, stock_minimo)
-       VALUES ($1, $2, 0)`,
-      [productoId, stock_inicial || 0]
-    );
+    const productoId = result.recordset[0].id;
 
-    await client.query('COMMIT');
+    await new sql.Request(transaction)
+      .input('productoId',   sql.Int, productoId)
+      .input('stockInicial', sql.Int, stock_inicial || 0)
+      .query(`INSERT INTO inventario (producto_id, stock, stock_minimo)
+              VALUES (@productoId, @stockInicial, 0)`);
+
+    await transaction.commit();
     context.res = created({ id: productoId, message: 'Producto creado exitosamente.' });
   } catch (error) {
-    await client.query('ROLLBACK');
+    await transaction.rollback();
     context.log.error('Error al crear producto:', error.message);
     context.res = serverError(error);
-  } finally {
-    client.release();
   }
 };

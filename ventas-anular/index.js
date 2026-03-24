@@ -2,54 +2,54 @@
 // DELETE /api/ventas/{id}/anular
 // Anula una venta y revierte el stock descontado.
 
-const { pool }   = require('../shared/db');
+const { sql, poolPromise } = require('../shared/db');
 const { ok, notFound, serverError } = require('../shared/response');
 
 module.exports = async function (context, req) {
   const id = req.params.id;
 
-  const client = await pool.connect();
+  const pool = await poolPromise;
+  const transaction = new sql.Transaction(pool);
   try {
-    await client.query('BEGIN');
+    await transaction.begin();
 
-    const { rows } = await client.query(
-      `SELECT id, estado FROM ventas WHERE id = $1`, [id]
-    );
+    const ventaResult = await new sql.Request(transaction)
+      .input('id', sql.Int, parseInt(id, 10))
+      .query(`SELECT id, estado FROM ventas WHERE id = @id`);
 
-    if (rows.length === 0) {
+    if (ventaResult.recordset.length === 0) {
+      await transaction.rollback();
       context.res = notFound(`Venta con id ${id} no encontrada.`);
-      await client.query('ROLLBACK');
       return;
     }
 
-    if (rows[0].estado === 'ANULADA') {
+    if (ventaResult.recordset[0].estado === 'ANULADA') {
+      await transaction.rollback();
       context.res = notFound('La venta ya se encuentra anulada.');
-      await client.query('ROLLBACK');
       return;
     }
 
     // Revertir stock
-    const { rows: detalle } = await client.query(
-      `SELECT producto_id, cantidad FROM detalle_venta WHERE venta_id = $1`, [id]
-    );
-    for (const d of detalle) {
-      await client.query(
-        `UPDATE inventario SET stock = stock + $1 WHERE producto_id = $2`,
-        [d.cantidad, d.producto_id]
-      );
+    const detalleResult = await new sql.Request(transaction)
+      .input('ventaId', sql.Int, parseInt(id, 10))
+      .query(`SELECT producto_id, cantidad FROM detalle_venta WHERE venta_id = @ventaId`);
+
+    for (const d of detalleResult.recordset) {
+      await new sql.Request(transaction)
+        .input('cantidad',   sql.Int, d.cantidad)
+        .input('productoId', sql.Int, d.producto_id)
+        .query(`UPDATE inventario SET stock = stock + @cantidad WHERE producto_id = @productoId`);
     }
 
-    await client.query(
-      `UPDATE ventas SET estado = 'ANULADA' WHERE id = $1`, [id]
-    );
+    await new sql.Request(transaction)
+      .input('id', sql.Int, parseInt(id, 10))
+      .query(`UPDATE ventas SET estado = 'ANULADA' WHERE id = @id`);
 
-    await client.query('COMMIT');
+    await transaction.commit();
     context.res = ok({ message: `Venta ${id} anulada y stock revertido.` });
   } catch (error) {
-    await client.query('ROLLBACK');
+    await transaction.rollback();
     context.log.error('Error al anular venta:', error.message);
     context.res = serverError(error);
-  } finally {
-    client.release();
   }
 };

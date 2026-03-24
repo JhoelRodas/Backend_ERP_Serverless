@@ -1,13 +1,13 @@
 {
   "name": "erp-azure-backend",
   "version": "1.0.0",
-  "description": "ERP Serverless - Azure Functions (Node.js) + PostgreSQL",
+  "description": "ERP Serverless - Azure Functions (Node.js) + Azure SQL Server",
   "scripts": {
     "start": "func start",
     "test": "jest"
   },
   "dependencies": {
-    "pg": "^8.11.3"
+    "mssql": "^11.0.1"
   },
   "devDependencies": {
     "@azure/functions": "^3.5.1",

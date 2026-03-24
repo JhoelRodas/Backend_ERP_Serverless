@@ -2,7 +2,7 @@
 // POST /api/compras/ordenes
 // Crea una nueva orden de compra en la base de datos.
 
-const { pool }       = require('../shared/db');
+const { sql, poolPromise } = require('../shared/db');
 const { created, badRequest, serverError } = require('../shared/response');
 
 module.exports = async function (context, req) {
@@ -13,33 +13,34 @@ module.exports = async function (context, req) {
     return;
   }
 
-  const client = await pool.connect();
+  const pool = await poolPromise;
+  const transaction = new sql.Transaction(pool);
   try {
-    await client.query('BEGIN');
+    await transaction.begin();
 
-    const { rows } = await client.query(
-      `INSERT INTO ordenes_compra (proveedor_id, fecha_entrega, estado, creado_en)
-       VALUES ($1, $2, 'PENDIENTE', NOW())
-       RETURNING id`,
-      [proveedor_id, fecha_entrega]
-    );
-    const ordenId = rows[0].id;
+    const result = await new sql.Request(transaction)
+      .input('proveedorId',  sql.Int,      proveedor_id)
+      .input('fechaEntrega', sql.DateTime, fecha_entrega ? new Date(fecha_entrega) : null)
+      .query(`INSERT INTO ordenes_compra (proveedor_id, fecha_entrega, estado, creado_en)
+              OUTPUT INSERTED.id
+              VALUES (@proveedorId, @fechaEntrega, 'PENDIENTE', GETDATE())`);
+    const ordenId = result.recordset[0].id;
 
     for (const p of productos) {
-      await client.query(
-        `INSERT INTO detalle_orden_compra (orden_id, producto_id, cantidad, precio_unitario)
-         VALUES ($1, $2, $3, $4)`,
-        [ordenId, p.producto_id, p.cantidad, p.precio_unitario]
-      );
+      await new sql.Request(transaction)
+        .input('ordenId',        sql.Int,           ordenId)
+        .input('productoId',     sql.Int,           p.producto_id)
+        .input('cantidad',       sql.Int,           p.cantidad)
+        .input('precioUnitario', sql.Decimal(10,2), p.precio_unitario)
+        .query(`INSERT INTO detalle_orden_compra (orden_id, producto_id, cantidad, precio_unitario)
+                VALUES (@ordenId, @productoId, @cantidad, @precioUnitario)`);
     }
 
-    await client.query('COMMIT');
+    await transaction.commit();
     context.res = created({ id: ordenId, message: 'Orden de compra creada exitosamente.' });
   } catch (error) {
-    await client.query('ROLLBACK');
+    await transaction.rollback();
     context.log.error('Error al crear orden de compra:', error.message);
     context.res = serverError(error);
-  } finally {
-    client.release();
   }
 };

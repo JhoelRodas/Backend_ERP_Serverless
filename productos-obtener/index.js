@@ -1,12 +1,13 @@
 ﻿// productos/obtener-productos/index.js
 // GET /api/productos
 
-const { pool }   = require('../shared/db');
+const { poolPromise } = require('../shared/db');
 const { ok, serverError } = require('../shared/response');
 
 module.exports = async function (context, req) {
   try {
-    const { rows } = await pool.query(
+    const pool = await poolPromise;
+    const result = await pool.request().query(
       `SELECT p.id, p.nombre, p.codigo, p.descripcion, p.precio,
               c.nombre AS categoria,
               COALESCE(i.stock, 0) AS stock
@@ -15,7 +16,7 @@ module.exports = async function (context, req) {
        LEFT   JOIN inventario i    ON i.producto_id = p.id
        ORDER  BY p.nombre ASC`
     );
-    context.res = ok(rows);
+    context.res = ok(result.recordset);
   } catch (error) {
     context.log.error('Error al obtener productos:', error.message);
     context.res = serverError(error);
