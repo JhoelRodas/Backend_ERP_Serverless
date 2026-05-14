@@ -1,4 +1,4 @@
-﻿// clientes/actualizar-cliente/index.js
+// clientes/actualizar-cliente/index.js
 // PUT /api/clientes/{id}
 
 const { sql, poolPromise } = require('../shared/db');
@@ -6,7 +6,7 @@ const { ok, notFound, serverError } = require('../shared/response');
 
 module.exports = async function (context, req) {
   const id = req.params.id;
-  const { nombre, email, telefono, direccion, ruc } = req.body || {};
+  const { nombre, email, telefono, direccion } = req.body || {};
 
   try {
     const pool = await poolPromise;
@@ -15,14 +15,12 @@ module.exports = async function (context, req) {
       .input('email',     sql.NVarChar, email     ?? null)
       .input('telefono',  sql.NVarChar, telefono  ?? null)
       .input('direccion', sql.NVarChar, direccion ?? null)
-      .input('ruc',       sql.NVarChar, ruc       ?? null)
       .input('id',        sql.Int,      parseInt(id, 10))
       .query(`UPDATE clientes
               SET nombre    = COALESCE(@nombre,    nombre),
                   email     = COALESCE(@email,     email),
                   telefono  = COALESCE(@telefono,  telefono),
-                  direccion = COALESCE(@direccion, direccion),
-                  ruc       = COALESCE(@ruc,       ruc)
+                  direccion = COALESCE(@direccion, direccion)
               WHERE id = @id`);
 
     if (result.rowsAffected[0] === 0) {

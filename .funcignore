@@ -1,0 +1,7 @@
+local.settings.json
+.git
+.gitignore
+.vscode
+README.md
+schemaSQLServer.sql
+*.log

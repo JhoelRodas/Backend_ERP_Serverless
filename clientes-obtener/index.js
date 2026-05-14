@@ -1,4 +1,4 @@
-﻿// clientes/obtener-clientes/index.js
+// clientes/obtener-clientes/index.js
 // GET /api/clientes
 
 const { sql, poolPromise } = require('../shared/db');
@@ -14,12 +14,12 @@ module.exports = async function (context, req) {
 
     if (search) {
       request.input('search', sql.NVarChar, `%${search}%`);
-      query = `SELECT id, nombre, email, telefono, ruc, creado_en
+      query = `SELECT id, nombre, email, telefono, creado_en
                FROM clientes
-               WHERE nombre LIKE @search OR email LIKE @search OR ruc LIKE @search
+               WHERE nombre LIKE @search OR email LIKE @search
                ORDER BY nombre ASC`;
     } else {
-      query = `SELECT id, nombre, email, telefono, ruc, creado_en
+      query = `SELECT id, nombre, email, telefono, creado_en
                FROM clientes
                ORDER BY nombre ASC`;
     }

@@ -41,7 +41,6 @@ CREATE TABLE clientes (
     email     VARCHAR(150) NOT NULL UNIQUE,
     telefono  VARCHAR(20),
     direccion TEXT,
-    ruc       VARCHAR(20) UNIQUE,
     activo    BIT NOT NULL DEFAULT 1, -- 1 es TRUE en SQL Server
     creado_en DATETIME2 NOT NULL DEFAULT GETDATE()
 );
@@ -53,7 +52,6 @@ CREATE TABLE proveedores (
     email     VARCHAR(150) UNIQUE,
     telefono  VARCHAR(20),
     direccion TEXT,
-    ruc       VARCHAR(20) UNIQUE,
     activo    BIT NOT NULL DEFAULT 1,
     creado_en DATETIME2 NOT NULL DEFAULT GETDATE()
 );
@@ -189,16 +187,16 @@ INSERT INTO categorias (nombre, descripcion) VALUES
     ('Consumibles',  'Papel, tóner y materiales de uso diario'),
     ('Software',     'Licencias y suscripciones de software');
 
-INSERT INTO proveedores (nombre, email, telefono, ruc) VALUES
-    ('Tech Distribuidora SAC', 'ventas@techdist.pe',  '+51 1 234-5678', '20100012345'),
-    ('Oficina Total EIRL',     'pedidos@oficina.pe',  '+51 1 987-6543', '20200067890'),
-    ('SumiMax Perú SA',        'compras@sumimax.pe',  '+51 1 555-0001', '20300011122');
+INSERT INTO proveedores (nombre, email, telefono) VALUES
+    ('Tech Distribuidora Bolivia', 'ventas@techdist.bo',  '+591 71234567'),
+    ('Oficina Central La Paz',    'pedidos@oficina.bo',  '+591 2 2112233'),
+    ('SumiMax Santa Cruz SA',     'compras@sumimax.bo',  '+591 3 3550001');
 
-INSERT INTO clientes (nombre, email, telefono, ruc) VALUES
-    ('Empresa ABC SAC',      'finanzas@abc.pe',    '+51 1 300-1111', '20400055566'),
-    ('Constructora XYZ SA',  'logistica@xyz.pe',   '+51 1 300-2222', '20500077788'),
-    ('Retail Perú EIRL',     'compras@retail.pe',  '+51 1 300-3333', '20600099900'),
-    ('Carlos Quispe',        'carlos@gmail.com',   '+51 999 111 222', NULL);
+INSERT INTO clientes (nombre, email, telefono) VALUES
+    ('Empresa ABC S.R.L.',   'finanzas@abc.bo',    '+591 70011111'),
+    ('Constructora XYZ',     'logistica@xyz.bo',   '+591 70022222'),
+    ('Retail Bolivia',       'compras@retail.bo',  '+591 2 2303333'),
+    ('Carlos Quispe',        'carlos@gmail.com',   '+591 69011122');
 
 INSERT INTO productos (nombre, codigo, descripcion, precio, categoria_id) VALUES
     ('Laptop Dell Inspiron 15',   'LAP-DELL-15',  '15" Intel i5, 16GB RAM, 512GB SSD', 3200.00, 1),
